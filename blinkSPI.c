@@ -15,8 +15,8 @@
 #define G_LED 12
 #define Y_LED 13
 
-#define rst_btn 19
-#define add_btn 20
+#define rst_btn 14
+#define add_btn 15
 
 #define HIGH 1
 #define LOW 0
@@ -28,8 +28,8 @@
 #define PIN_MOSI 19
 
 //setup our queue length and handle
- static const uint8_t rateQ_len = 5;
- static QueueHandle_t rateQ_h;
+static const uint8_t rateQ_len = 5;
+static QueueHandle_t rateQ_h;
 
 void GreenLEDTask (void *param)
 {
@@ -52,15 +52,17 @@ void RedLEDTask (void *param)
 
 void AddTimeTask (void *param)
 {
-    while(1) {
-        int btnData = gpio_get(add_btn);
+    volatile int btnData = 1;
+    while(1) {        
+        btnData = gpio_get(add_btn);
 
         if(btnData == LOW)
         {
             int data = 1;
             if(xQueueSend(rateQ_h,(void *)&data,( TickType_t ) 0) != pdTRUE)
             {
-                //add to queue failed
+                printf("Sending Add Failed!\n");
+                vTaskDelay(100);
             }
 
             //debounce
@@ -71,15 +73,17 @@ void AddTimeTask (void *param)
 
 void RstTimeTask (void *param)
 {
+    volatile int btnData = 1;
     while(1){
-        int btnData = gpio_get(rst_btn);
+        btnData = gpio_get(rst_btn);
         
         if(btnData == LOW)
         {
             int data = 0;
             if(xQueueSend(rateQ_h,(void *)&data,( TickType_t ) 0) != pdTRUE)
             {
-                //add to queue failed 
+                printf("Sending Reset Failed!\n");
+                vTaskDelay(100);
             }
 
             //debounce
@@ -87,14 +91,10 @@ void RstTimeTask (void *param)
         }
     }
 }
-
+int delay_time = 100
 void BlueLEDTask (void *param)
 {
-    int myTodo;
-    int delay_time = 100;
-
     while(1) {
-        
         if(xQueueReceive(rateQ_h,(void *)&myTodo,( TickType_t ) 0) == pdTRUE)
         {
             //New data update last delay for future use
@@ -104,11 +104,12 @@ void BlueLEDTask (void *param)
                 delay_time += 100;
             }
         }
-
+        
         gpio_put(B_LED,HIGH);
         vTaskDelay(delay_time);
         gpio_put(B_LED,LOW);
         vTaskDelay(delay_time);
+        
     }
 }
 void YellowLEDTask (void *param)
@@ -179,33 +180,15 @@ int main()
     TaskHandle_t bLEDtask = NULL;
     TaskHandle_t yLEDtask = NULL;
     TaskHandle_t spiTask = NULL;
+    TaskHandle_t addTask = NULL;
+    TaskHandle_t rstTask = NULL;
 
-    TaskHandle_t AddTimeTask_h = NULL;
-    TaskHandle_t RstTimeTask_h = NULL;
-
-    uint32_t statusRstTime = xTaskCreate(
-                    RstTimeTask,
-                    "Reset Time",
-                    1000,
-                    NULL,
-                    1,
-                    &RstTimeTask_h
-    );
-
-    uint32_t statuAddTime = xTaskCreate(
-                    AddTimeTask,
-                    "Add Time",
-                    1000,
-                    NULL,
-                    1,
-                    &AddTimeTask_h
-    );
 
 
     uint32_t statusSpi = xTaskCreate(
                     SendSPITask,
                     "SPI Task",
-                    1000,
+                    500,
                     NULL,
                     tskIDLE_PRIORITY,
                     &spiTask
@@ -214,7 +197,7 @@ int main()
 
     uint32_t status = xTaskCreate(
                     GreenLEDTask,
-                    "Green LED",
+                    "G LED",
                     500,
                     NULL,
                     tskIDLE_PRIORITY,
@@ -223,7 +206,7 @@ int main()
     
     uint32_t statusR = xTaskCreate(
                     RedLEDTask,
-                    "Red LED",
+                    "R LED",
                     500,
                     NULL,
                     tskIDLE_PRIORITY,
@@ -232,8 +215,8 @@ int main()
 
     uint32_t statusB = xTaskCreate(
                     BlueLEDTask,
-                    "Blue LED",
-                    1000,
+                    "B LED",
+                    500,
                     NULL,
                     tskIDLE_PRIORITY,
                     &bLEDtask
@@ -241,11 +224,30 @@ int main()
 
     uint32_t statusY = xTaskCreate(
                     YellowLEDTask,
-                    "Yellow LED",
+                    "Y LED",
                     500,
                     NULL,
                     tskIDLE_PRIORITY,
                     &yLEDtask
+    );
+
+
+    uint32_t statusRstTime = xTaskCreate(
+                    RstTimeTask,
+                    "Rst Time",
+                    500,
+                    NULL,
+                    tskIDLE_PRIORITY,
+                    &rstTask
+    );
+
+    uint32_t statuAddTime = xTaskCreate(
+                    AddTimeTask,
+                    "Add Time",
+                    500,
+                    NULL,
+                    tskIDLE_PRIORITY,
+                    &addTask
     );
 
     vTaskStartScheduler();
